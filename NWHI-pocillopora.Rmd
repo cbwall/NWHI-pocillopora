@@ -53,7 +53,11 @@ Fig.formatting<-(theme_classic()) +
 # load in data
 iso<-read.csv("data/isotope_data.csv")
 
-#carbon
+iso<- iso %>% 
+  dplyr::select(species, sample.ID, fraction, sample.run.ID, 
+                ug.N, d15N, ug.C, d13C, d15N.h.s, d13C.h.s, C.N)
+
+######### carbon
 
 d13C<-ggplot(iso, aes(y=d13C, x=species))+
   facet_wrap(.~fraction)+
@@ -90,6 +94,17 @@ d15N.HS<-ggplot(iso, aes(y=d15N.h.s, x=species))+
   geom_jitter(color="olivedrab", size=2, alpha=0.5) +
   ylab(expression(paste(delta^{15},N[H-S], " (\u2030)")))+
   ylim(0, 3)+
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "italic")) +
+  xlab("species")
+
+######## C.N
+CN<-ggplot(iso, aes(y=C.N, x=species))+
+  facet_wrap(.~fraction)+
+  geom_boxplot(fill="coral", alpha=0.9)+
+  geom_jitter(color="red", size=2, alpha=0.5) +
+  ylab("C:N")+
+  ylim(0, 15)+
   theme_bw() +
   theme(axis.text.x = element_text(face = "italic")) +
   xlab("species")
