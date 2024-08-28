@@ -51,55 +51,64 @@ Fig.formatting<-(theme_classic()) +
 
 ```{r}
 # load in data
-iso<-read.csv("data/isotope_data.csv")
+iso.full<-read.csv("data/isotope_data.csv")
 
-iso<- iso %>% 
-  dplyr::select(species, sample.ID, fraction, sample.run.ID, 
+# format metadata
+make.fac<-c("island.atoll", "location", "genus", "fraction", "sample.ID")
+iso.full[make.fac]<-lapply(iso.full[make.fac], factor) # make all these factors
+
+iso.full<-  iso.full %>% mutate(depth.m = depth.ft*.3048)
+iso<- iso.full %>% 
+  dplyr::select(island.atoll, location, latitude, longitude, depth.m, genus, sample.ID, fraction,
                 ug.N, d15N, ug.C, d13C, d15N.h.s, d13C.h.s, C.N)
 
-######### carbon
+poc.iso<-iso[(iso$genus=="Pocillopora"),]
+```
 
-d13C<-ggplot(iso, aes(y=d13C, x=species))+
+Test for systemic changes in d13C with C:N
+```{r CN isoplots}
+
+#### C.N test plots
+
+anova(lm(d13C~C.N, data=poc.iso)) # significant... something to think about. carbonate contam? 
+anova(lm(d15N~C.N, data=poc.iso)) # also significant, so perhaps this is a biolgical pattern
+anova(lm(C.N~depth.m, data=poc.iso))
+
+# C.N by d13C
+d13C.C.N<-ggplot(iso, aes(y=d13C, x=C.N))+
+  geom_point(aes(shape=genus),color="dodgerblue", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
   facet_wrap(.~fraction)+
-  geom_boxplot(fill="dodgerblue", alpha=0.9)+
-  geom_jitter(color="blue", size=2, alpha=0.5) +
+  geom_smooth(method=lm, color="blue") +
   ylab(expression(paste(delta^{13},C, " (\u2030)")))+
-  ylim(-22, -12)+
-  theme_bw() +
-  theme(axis.text.x = element_text(face = "italic")) +
-  xlab("species")
+  ylim(-22, -14)+
+  xlab("C:N") +
+  theme_bw()
 
-d13C.HS<-ggplot(iso, aes(y=d13C.h.s, x=species))+
-  geom_boxplot(fill="dodgerblue", alpha=0.9)+
-  geom_jitter(color="blue", size=2, alpha=0.5) +
-  ylab(expression(paste(delta^{13},C[H-S], " (\u2030)")))+
-  ylim(-5, 1)+
-  theme_bw() +
-  theme(axis.text.x = element_text(face = "italic")) +
-  xlab("species")
-
-############# nitrogen
-d15N<-ggplot(iso, aes(y=d15N, x=species))+
+# C.N by d15N
+d15N.C.N<-ggplot(iso, aes(y=d15N, x=C.N))+
+  geom_point(aes(shape=genus),color="mediumseagreen", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
   facet_wrap(.~fraction)+
-  geom_boxplot(fill="mediumseagreen", alpha=0.9)+
-  geom_jitter(color="olivedrab", size=2, alpha=0.5) +
+  geom_smooth(method=lm, color="olivedrab", fill="olivedrab", alpha=0.5) +
   ylab(expression(paste(delta^{15},N, " (\u2030)")))+
-  ylim(0, 5)+
-  theme_bw() +
-  theme(axis.text.x = element_text(face = "italic")) +
-  xlab("species")
+  ylim(0, 6)+
+  xlab("C:N") +
+  theme_bw()
 
-d15N.HS<-ggplot(iso, aes(y=d15N.h.s, x=species))+
-  geom_boxplot(fill="mediumseagreen", alpha=0.9)+
-  geom_jitter(color="olivedrab", size=2, alpha=0.5) +
-  ylab(expression(paste(delta^{15},N[H-S], " (\u2030)")))+
-  ylim(0, 3)+
-  theme_bw() +
-  theme(axis.text.x = element_text(face = "italic")) +
-  xlab("species")
+# C.N by depth
+C.N.depth<-ggplot(iso, aes(y=C.N, x=depth.m))+
+  geom_point(aes(shape=genus),color="coral", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm, color="orange") +
+  ylim(4, 12)+
+  xlab("depth (m)") +
+  ylab("C:N") +
+  theme_bw()
 
 ######## C.N
-CN<-ggplot(iso, aes(y=C.N, x=species))+
+CN<-ggplot(iso, aes(y=C.N, x=genus))+
   facet_wrap(.~fraction)+
   geom_boxplot(fill="coral", alpha=0.9)+
   geom_jitter(color="red", size=2, alpha=0.5) +
@@ -109,10 +118,353 @@ CN<-ggplot(iso, aes(y=C.N, x=species))+
   theme(axis.text.x = element_text(face = "italic")) +
   xlab("species")
 
+###
+C.N.plots<-plot_grid(d13C.C.N, d15N.C.N, C.N.depth, nrow=3)
+C.N.plots
+dev.copy(pdf, "figures/C.N.plots.pdf", width = 6, height = 9, encod="MacRoman")
+dev.off()
 
-NWHI.coral<-plot_grid(d13C, d13C.HS, d15N, d15N.HS, nrow=2)
+```
+
+Host and symbiont d13C and d15N values, and their differences
+```{r d13C and d15N}
+######### carbon
+
+d13C<-ggplot(iso, aes(y=d13C, x=genus))+
+  facet_wrap(.~fraction)+
+  geom_boxplot(fill="dodgerblue", alpha=0.9)+
+  geom_jitter(color="blue", size=2, alpha=0.5) +
+  ylab(expression(paste(delta^{13},C, " (\u2030)")))+
+  ylim(-22, -12)+
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "italic")) +
+  xlab("species")
+
+d13C.HS<-ggplot(iso, aes(y=d13C.h.s, x=genus))+
+  geom_boxplot(fill="dodgerblue", alpha=0.9)+
+  geom_jitter(color="blue", size=2, alpha=0.5) +
+  ylab(expression(paste(delta^{13},C[H-S], " (\u2030)")))+
+  ylim(-5, 1)+
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "italic")) +
+  xlab("species")
+
+############# nitrogen
+d15N<-ggplot(iso, aes(y=d15N, x=genus))+
+  facet_wrap(.~fraction)+
+  geom_boxplot(fill="mediumseagreen", alpha=0.9)+
+  geom_jitter(color="olivedrab", size=2, alpha=0.5) +
+  ylab(expression(paste(delta^{15},N, " (\u2030)")))+
+  ylim(0, 5)+
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "italic")) +
+  xlab("species")
+
+d15N.HS<-ggplot(iso, aes(y=d15N.h.s, x=genus))+
+  geom_boxplot(fill="mediumseagreen", alpha=0.9)+
+  geom_jitter(color="olivedrab", size=2, alpha=0.5) +
+  ylab(expression(paste(delta^{15},N[H-S], " (\u2030)")))+
+  ylim(0, 3)+
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "italic")) +
+  xlab("species")
+
+
+NWHI.coral<-plot_grid(d13C, d13C.HS, d15N, d15N.HS, nrow=2, rel_widths = c(1, 0.5))
 NWHI.coral
 dev.copy(pdf, "figures/NWHI.coral.pdf", width = 10, height = 10, encod="MacRoman")
 dev.off()
+```
+
+Depth patterns in d13C and d15N for each fraction
+```{r depth}
+
+######### carbon
+d13C.depth<-ggplot(iso, aes(y=d13C, x=depth.m))+
+  geom_point(aes(shape=genus),color="dodgerblue", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm) +
+  ylab(expression(paste(delta^{13},C, " (\u2030)")))+
+  ylim(-22, -12)+
+  xlab("depth (m)") +
+  theme_bw()
+
+d13C.HS.depth<-ggplot(iso, aes(y=d13C.h.s, x=depth.m))+
+  geom_point(aes(shape=genus),color="dodgerblue", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
+  geom_smooth(method=lm) +
+  ylab(expression(paste(delta^{13},C[H-S], " (\u2030)")))+
+  ylim(-4, 2)+
+  xlab("depth (m)") +
+  theme_bw()
+
+
+######
+# evaluate model fits of d13C by depth for pocillopora only
+anova(lm(d13C~ depth.m, data=poc.iso[(iso$fraction=="host"),])) # not significant
+anova(lm(d13C~ depth.m, data=poc.iso[(iso$fraction=="symbiont"),])) # not significant
+anova(lm(d13C.h.s~ depth.m, data=poc.iso)) # strong trend
+
+######### nitrogen
+d15N.depth<-ggplot(iso, aes(y=d15N, x=depth.m))+
+  geom_point(aes(shape=genus),color="mediumseagreen", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm, color="olivedrab") +
+  ylab(expression(paste(delta^{15},N, " (\u2030)")))+
+  ylim(0, 6)+
+  xlab("depth (m)") +
+  theme_bw()
+
+d15N.HS.depth<-ggplot(iso, aes(y=d15N.h.s, x=depth.m))+
+  geom_point(aes(shape=genus),color="mediumseagreen", alpha=0.9)+
+  scale_shape_manual(values=c(1,16))+
+  geom_smooth(method=lm, color="olivedrab") +
+  ylab(expression(paste(delta^{15},N[H-S], " (\u2030)")))+
+  ylim(0, 3)+
+  xlab("depth (m)") +
+  theme_bw()
+
+#######
+# evaluate model fits of d15N by depth for pocillopora only
+anova(lm(d15N~ depth.m, data=poc.iso[(iso$fraction=="host"),])) # not significant
+anova(lm(d15N~ depth.m, data=poc.iso[(iso$fraction=="symbiont"),])) # not significant
+anova(lm(d15N.h.s~ depth.m, data=poc.iso)) # not significant
+
+######
+# figure output
+depth.plots<-plot_grid(d13C.depth + guides(shape = FALSE), d13C.HS.depth, 
+                       d15N.depth + guides(shape = FALSE), d15N.HS.depth, 
+                       nrow=2, rel_widths = c(1,0.6))
+depth.plots
+dev.copy(pdf, "figures/depth.plots.pdf", width = 9, height = 7, encod="MacRoman")
+dev.off()
+
+```
+
+effects driving isotope values
+```{r}
+####  d13C
+## Latitude
+anova(lm(d13C~ latitude, data=poc.iso[(iso$fraction=="host"),])) #  marginal significant
+anova(lm(d13C~ latitude, data=poc.iso[(iso$fraction=="symbiont"),])) # marginal significant
+anova(lm(d13C.h.s~ latitude, data=poc.iso)) # not significant
+
+d13C.lat<-ggplot(poc.iso, aes(y=d13C, x=latitude))+
+  geom_point(aes(shape=genus),color="dodgerblue", alpha=0.9)+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm) +
+  ylab(expression(paste(delta^{13},C, " (\u2030)")))+
+  ylim(-22, -12)+
+  xlab("latitude") +
+  guides(shape = FALSE) +
+  theme_bw()
+
+d13C.long<-ggplot(poc.iso, aes(y=d13C, x=longitude))+
+  geom_point(aes(shape=genus),color="dodgerblue", alpha=0.9)+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm) +
+  ylab(expression(paste(delta^{13},C, " (\u2030)")))+
+  ylim(-22, -12)+
+  xlab("longitude") +
+  guides(shape = FALSE)+
+  theme_bw()
+
+## Longitude
+anova(lm(d15N~ longitude, data=poc.iso[(iso$fraction=="host"),])) # marginal significant
+anova(lm(d15N~ longitude, data=poc.iso[(iso$fraction=="symbiont"),])) # not significant
+anova(lm(d15N.h.s~ longitude, data=poc.iso)) # not significant
+
+
+#############  d15N
+## Latitude
+anova(lm(d15N~ latitude, data=poc.iso[(iso$fraction=="host"),])) #  significant
+anova(lm(d15N~ latitude, data=poc.iso[(iso$fraction=="symbiont"),])) # not significant
+anova(lm(d15N.h.s~ latitude, data=poc.iso)) # not significant
+
+d15N.lat<-ggplot(poc.iso, aes(y=d15N, x=latitude))+
+  geom_point(aes(shape=genus),color="mediumseagreen", alpha=0.9)+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm, color="olivedrab") +
+  ylab(expression(paste(delta^{15},N, " (\u2030)")))+
+  ylim(0, 6)+
+  xlab("latitude") +
+  guides(shape = FALSE) +
+  theme_bw()
+
+## Longitude
+# d15N
+anova(lm(d15N~ longitude, data=poc.iso[(iso$fraction=="host"),])) # marginal significant
+anova(lm(d15N~ longitude, data=poc.iso[(iso$fraction=="symbiont"),])) # not significant
+anova(lm(d15N.h.s~ longitude, data=poc.iso)) # not significant
+
+d15N.long<-ggplot(poc.iso, aes(y=d15N, x=longitude))+
+  geom_point(aes(shape=genus),color="mediumseagreen", alpha=0.9)+
+  facet_wrap(.~fraction)+
+  geom_smooth(method=lm, color="olivedrab") +
+  ylab(expression(paste(delta^{15},N, " (\u2030)")))+
+  ylim(0, 6)+
+  xlab("longitude") +
+  guides(shape = FALSE) +
+  theme_bw()
+
+lat.long.isotope<-plot_grid(d13C.lat, d13C.long, d15N.lat, d15N.long, nrow=2)
+lat.long.isotope
+dev.copy(pdf, "figures/lat.long.isotopes.pdf", width = 11, height = 7, encod="MacRoman")
+dev.off()
+
+```
+
+```{r map}
+# load data
+API<-read.csv("data/API_key.csv")
+API.key<-API[1,1]
+
+#map
+site.df<-read.csv("data/site.lat.long.csv")
+
+#quick map
+ggplot(site.df, aes(x = longitude, y = latitude)) + coord_quickmap() + geom_point()
+
+######## using ggmap
+register_google(key=API.key)
+
+########
+#Hawaii Map
+########
+
+HI.map<-get_googlemap(center=c(-165, y = 24), zoom = 5, source="google", maptype="satellite",
+                      style=c(feature="poi",element="labels",visibility="off")) 
+
+HI.map_for_man <- ggmap(HI.map) +
+  geom_point(aes(x = -176, y = 27), pch=23, colour="black",fill="mediumseagreen", size = 3, stroke=0.5) +
+  xlab("longitude") + ylab("latitude") +
+ theme(text = element_text(size=6),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm"))
+
+
+##########
+# site map
+##########
+PHA.rev=c(x=-175.85, y = 27.85)
+
+map.PHA<-get_map(PHA.rev, 
+                      zoom=11, 
+                      scale = 2, 
+                      maptype= "satellite",
+                      source="google", extent= "device", legend="topright")
+
+PHA.sites<-
+  ggmap(map.PHA)+
+  geom_point(aes(x=longitude, y=latitude, size=depth.m), data=site.df, alpha=0.8, color="tan")+
+  geom_point(aes(x=longitude, y=latitude, size=depth.m), data=site.df, alpha=1, color="black", pch=21)+
+  labs(x="longitude", y="latitude") +
+  theme(text = element_text(size=8),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
+  guides(size=guide_legend(title="Depth (m)"))
+
+
+### make a plot where we scale the points by isotope values 
+d13C.mean<-aggregate(d13C~location+latitude+longitude, data=iso.host, FUN=mean)
+d15N.mean<-aggregate(d15N~location+latitude+longitude, data=iso.host, FUN=mean)
+
+d13C.sd<-aggregate(d13C~location+latitude+longitude, data=iso.host, FUN=sd)
+d15N.sd<-aggregate(d15N~location+latitude+longitude, data=iso.host, FUN=sd)
+
+### plotting the means
+PHA.d13C.map.mean<-
+  ggmap(map.PHA)+
+  geom_point(aes(x=longitude, y=latitude, size=d13C), data=d13C.mean, alpha=0.8, color="lightblue")+
+  geom_point(aes(x=longitude, y=latitude, size=d13C), data=d13C.mean, alpha=1, color="black", pch=21)+
+  labs(x="longitude", y="latitude") +
+  scale_size(range = c(2, 6))+
+  theme(text = element_text(size=8),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
+  guides(size=guide_legend(title=expression(paste(delta^{13},C~mean, " (\u2030)"))))
+
+PHA.d15N.map.mean<-
+  ggmap(map.PHA)+
+  geom_point(aes(x=longitude, y=latitude, size=d15N), data=d15N.mean, alpha=0.8, color="darkseagreen2")+
+  geom_point(aes(x=longitude, y=latitude, size=d15N), data=d15N.mean, alpha=1, color="black", pch=21)+
+  labs(x="longitude", y="latitude") +
+  scale_size(range = c(2, 6))+
+  theme(text = element_text(size=8),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
+  guides(size=guide_legend(title=expression(paste(delta^{15},N~mean, " (\u2030)"))))
+
+
+# plotting the SD
+PHA.d13C.map.SD<-
+  ggmap(map.PHA)+
+  geom_point(aes(x=longitude, y=latitude, size=d13C), data=d13C.sd, alpha=0.8, color="deepskyblue1")+
+  geom_point(aes(x=longitude, y=latitude, size=d13C), data=d13C.sd, alpha=1, color="black", pch=21)+
+  labs(x="longitude", y="latitude") +
+  scale_size(range = c(2, 6))+
+  theme(text = element_text(size=8),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
+  guides(size=guide_legend(title=expression(paste(delta^{13},C~SD, " (\u2030)"))))
+
+PHA.d15N.map.SD<-
+  ggmap(map.PHA)+
+  geom_point(aes(x=longitude, y=latitude, size=d15N), data=d15N.sd, alpha=0.8, color="limegreen")+
+  geom_point(aes(x=longitude, y=latitude, size=d15N), data=d15N.sd, alpha=1, color="black", pch=21)+
+  labs(x="longitude", y="latitude") +
+  scale_size(range = c(2, 6))+
+  theme(text = element_text(size=8),
+       plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
+  guides(size=guide_legend(title=expression(paste(delta^{15},N~SD, " (\u2030)"))))
+
+###
+
+site.plots<-plot_grid(HI.map_for_man, PHA.sites,
+                      PHA.d13C.map.mean, PHA.d15N.map.mean, 
+                      PHA.d13C.map.SD, PHA.d15N.map.SD,
+          labels=c('A', 'B', 'C', 'D', 'E', 'F'), label_size=8, hjust=-1, vjust= 6, ncol=2, nrow=3)
+
+
+### export it
+pdf(file= "figures/map.data.pdf", height=10, width=10, encod="MacRoman")
+site.plots
+dev.off()
+
+```
+
+```{r models}
+# models
+
+## tests for assumptions
+for(i in c(6,8,11)){
+  Y<-iso[,i]
+  full<-lm(sqrt(Y)~fraction, data=iso, na.action=na.exclude)
+  R <- resid(full) #save glm residuals
+  Y.shapiro <- shapiro.test(R) #runs a normality test on residuals
+  print(Y.shapiro) # null = normally distrubuted (P<0.05 = non-normal
+
+  op<-par(mfrow = c(2,3), mar=c(5,4,1,2), pty="sq")
+  plot(full, add.smooth = FALSE, which=1)
+  QQ <- qqnorm(R, main = colnames(iso)[i]) 
+  QQline <- qqline(R)
+  hist(R, xlab="Residuals", main = colnames(iso)[i])
+}
+
+# d15N and C.N a bit wonky. d15N okay, but C.N needs sqrt transformation
+
+#trend
+d13C.mod<-lm(d13C~fraction, data=poc.iso)
+anova(d13C.mod)
+
+# significant difference by fraction
+d15N.mod<-lm(d15N~fraction, data=poc.iso)
+anova(d15N.mod)
+
+# significant difference by fraction
+CN.mod<-lm(sqrt(C.N)~fraction, data=poc.iso)
+anova(CN.mod)
+
+###### ancova
+d13C.anc<-lm(d13C.h.s~longitude+depth.m, data=poc.iso)
+anova(d13C.anc)
+
 ```
 
